@@ -1,60 +1,205 @@
-# Biblioteca en Solana
+# 🖥️ PC Builder Solana
 
-![banner](./images/banner-biblioteca.jpg)
+Sistema de armado de computadoras desarrollado como **Solana Program** utilizando **Rust** y el framework **Anchor**.  
 
-CRUD básico de un Solana Program desarrollado con Rust y Anchor desde el Solana Playground. 
+Este proyecto implementa un sistema **CRUD** para gestionar componentes de una PC dentro de un carrito en blockchain, aplicando:
 
-Puedes comenzar dándole Fork a este repositorio (abajo te explicamos como 👇), **hemos preparado un entorno de codespaces listo para que no tengas que instalar nada**, solo déjate llevar por la fluidez de los ejercicios y temas desarrollados especialmente para ti. 
+- 🔑 Program Derived Addresses (PDAs)  
+- ⚡ Optimización de memoria *On-Chain*  
+- 🔒 Seguridad basada en firmas  
 
-Asegúrate de clonar este repositorio a tu cuenta usando el botón **`Fork`**.
+---
 
-![fork](./images/fork.png)
+## 📚 Descripción
 
-## Importando el proyecto 
+**PC Builder Solana** simula un configurador de computadoras donde cada usuario puede:
 
-Ya con el repositorio en tu cuenta lo siguiente que debes hacer copiar el `enlace de tu repositorio`, lo que se puede hacer directamente desdel navegador:
+- Crear un proyecto de armado de PC  
+- Agregar componentes (CPU, GPU, RAM, etc.)  
+- Editar especificaciones y precios  
+- Eliminar componentes del carrito  
+- Consultar su build completa en blockchain  
 
-![repo](./images/repo.png)
-Posteriormente, lo uniremos con el siguiente enlace en nuestro navegador de preferencia:
+---
 
-```url
-https://beta.solpg.io/
+## 🧠 Arquitectura y Estructuras de Datos
+
+En Solana es necesario definir el tamaño de los datos para calcular correctamente la renta (*rent*).
+
+### 📦 PDA Principal: `CarritoPC`
+
+Cuenta raíz que almacena el carrito de componentes.
+
+```rust
+#[account]
+#[derive(InitSpace)]
+pub struct CarritoPC {
+    pub owner: Pubkey,
+    #[max_len(40)]
+    pub nombre_proyecto: String,
+    #[max_len(12)]
+    pub componentes: Vec<Componente>,
+}
 ```
 
-Lo que nos dará algo parecido a:
+---
 
-![url](./images/url.png)
+### 🧩 Estructura Interna: `Componente`
 
-Al pulsar enter seremos enviados al `Solana Playground` con nuestro proyecto abierto:
+Cada componente contiene:
 
-![pg](./images/pg.png)
+- `categoria (String)` → tipo de componente (CPU, GPU, etc.)  
+- `modelo (String)` → nombre del modelo  
+- `precio_estimado (u32)` → costo estimado  
 
-Para guardarlo solo damos clic en el boton `import` y asignamos un nombre:
+```rust
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Debug)]
+pub struct Componente {
+    #[max_len(20)]
+    pub categoria: String,
+    #[max_len(30)]
+    pub modelo: String,
+    pub precio_estimado: u32,
+}
+```
 
-![import](./images/import.png)
+---
 
-## Preparacion del entorno
+## 🔒 Seguridad
 
-Primero conectaremos el entorno con la devnet, lo que tambien procederá a la creación de una wallet. Para eso daremos clic en donde dice **Not Conected**:
+El contrato asegura que solo el dueño pueda modificar el carrito:
 
-![playground1](./images/playground1.png)
+```rust
+require!(
+    carrito.owner == ctx.accounts.owner.key(),
+    Errores::NoEresElDueno
+);
+```
 
-Saldrá la siguiente ventana donde daremos en el botón **Continue**:
+✔ Protege el acceso al carrito  
+✔ Evita modificaciones por terceros  
 
-![wallet](./images/wallet.png)
+---
 
-Como resultado se mostrará la siguiente información:
+## ⚙️ Funcionalidad (CRUD)
 
-![status](./images/status.png)
+### 🟢 Inicializar Carrito
 
-* En verde: el estado de la conexión y el entorno al que se encuentra conectado
+Crea la cuenta principal usando:
 
-* En amarillo: la la dirección de la wallet conectada
+```rust
+[b"pcbuild", owner.key().as_ref()]
+```
 
-* En azul: la cantidad de tokens en la wallet
+Inicializa:
+- Owner  
+- Nombre del proyecto  
+- Lista vacía de componentes  
 
-> ℹ️ ¿Quieres ver el ejemplo de un "Hola Mundo" en Solana?. Da clic aquí: 👉 [Ver Ejemplo](https://github.com/WayLearnLatam/Solana-starter-kit/tree/1fc6349ba63375a3fe223d8d56911bc64765459b/build-deploy)
+---
 
-> ℹ️ ¿Cuentas con una Wallet de [Phantom](https://phantom.com/) que deseas importar?, Da clic aquí para ver como hacerlo: 
+### ➕ Agregar Componente
 
-👉 [Como Importar una Wallet](https://github.com/WayLearnLatam/Solana-starter-kit/tree/1fc6349ba63375a3fe223d8d56911bc64765459b/import-key-a-playground)
+- Recibe:
+  - categoría  
+  - modelo  
+  - precio  
+- Inserta en el vector con `.push()`  
+
+---
+
+### ✏️ Editar Componente
+
+- Busca por `modelo`  
+- Actualiza:
+  - categoría  
+  - precio  
+
+---
+
+### ❌ Eliminar Componente
+
+```rust
+.iter().position(|c| c.modelo == modelo)
+```
+
+- Si existe → `.remove(index)`  
+- Si no → error `ComponenteNoEncontrado`  
+
+---
+
+### 📖 Ver Carrito
+
+```rust
+msg!("Componentes en Carrito: {:#?}", carrito.componentes);
+```
+
+Muestra todos los componentes en logs *On-Chain*
+
+---
+
+## 🧪 Despliegue en Solana Playground
+
+1. Copia el código en `lib.rs`  
+2. Ejecuta:
+
+```bash
+cargo clean
+```
+
+3. Haz clic en **Build**  
+4. Haz clic en **Deploy (Devnet)**  
+
+---
+
+## 🧑‍💻 Pruebas
+
+Puedes interactuar con el contrato usando:
+
+- Pestaña **Test** del Playground  
+- Scripts en TypeScript:
+
+```ts
+pg.program.methods...
+```
+
+Parámetros:
+- `categoria: String`  
+- `modelo: String`  
+- `precio: u32`  
+
+---
+
+## ⚠️ Manejo de Errores
+
+```rust
+#[error_code]
+pub enum Errores {
+    #[msg("Acceso denegado: No eres el dueño de este carrito.")]
+    NoEresElDueno,
+    #[msg("El componente no se encuentra en el carrito.")]
+    ComponenteNoEncontrado,
+}
+```
+
+---
+
+## 📌 Conclusión
+
+Este proyecto demuestra:
+
+- Gestión de datos estructurados en Solana  
+- Seguridad mediante validación de firmas  
+- Uso eficiente de vectores dinámicos  
+- Aplicación de CRUD en un caso práctico (PC Builder)  
+
+---
+
+## 🚀 Próximos pasos
+
+- Integrar frontend (React / Next.js)  
+- Calcular precio total automáticamente  
+- Añadir compatibilidad entre componentes  
+- Integrar tiendas reales (APIs externas)  
+
+---
